@@ -744,7 +744,7 @@ var _Sources = (() => {
     return el.text().replace(/\s+/g, " ").trim();
   }
   var SodsaiMeInfo = {
-    version: "0.1.0",
+    version: "0.1.1",
     name: "SodsaiMe (experimental)",
     icon: "icon.png",
     author: "Community development",
@@ -757,11 +757,12 @@ var _Sources = (() => {
   var SodsaiMe = class extends import_types.Source {
     constructor() {
       super(...arguments);
-      this.requestManager = App.createRequestManager({ requestsPerSecond: 1, requestTimeout: 2e4 });
+      this.requestManager = App.createRequestManager({ requestsPerSecond: 2, requestTimeout: 9e3 });
     }
     async load(path) {
-      const request = App.createRequest({ url: absolute(path), method: "GET" });
-      const response = await this.requestManager.schedule(request, 1);
+      const request = App.createRequest({ url: absolute(path), method: "GET", headers: { "Accept": "text/html,application/xhtml+xml", "Accept-Language": "th-TH,th;q=0.9,en;q=0.8", "Referer": BASE + "/" } });
+      let response;
+      try { response = await this.requestManager.schedule(request, 1); } catch (error) { throw new Error("SodsaiMe HTTP request failed: " + String(error)); }
       const html = String(response.data || "");
       if (/just a moment|checking your browser|cf-chl/i.test(html)) {
         throw new Error("SodsaiMe: \u0E40\u0E27\u0E47\u0E1A\u0E44\u0E0B\u0E15\u0E4C\u0E15\u0E49\u0E2D\u0E07\u0E15\u0E23\u0E27\u0E08\u0E2A\u0E2D\u0E1A\u0E04\u0E27\u0E32\u0E21\u0E1B\u0E25\u0E2D\u0E14\u0E20\u0E31\u0E22\u0E01\u0E48\u0E2D\u0E19");
