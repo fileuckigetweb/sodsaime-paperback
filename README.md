@@ -1,7 +1,7 @@
-# สดใสเมะ Paperback 0.8 — v0.1.3 diagnostic build
+# สดใสเมะ Paperback 0.8 v0.1.4
 
-Uses the working GoManga 0.8 source framework. Attempts www and apex hosts sequentially and reports which request fails. This is a diagnostic build, **not** a verified fix.
+สร้างจากไฟล์ GoManga v1.0.5 ที่ผู้ใช้ส่งมา โดยคงโครงสร้าง Browserify และ Paperback App.create* API ไว้
 
-Upload `versioning.json` and `SodsaiMe/source.js` to the same paths in your existing GitHub Pages repository. Confirm the published `versioning.json` says 0.1.3 and update the installed extension before testing.
+ยังไม่ได้ทดสอบจริงใน Paperback; หาก AsyncOperationTimedOutError คงอยู่ แสดงว่าการส่งคำขอเว็บไซต์ยังมีปัญหา
 
-If Error 300 remains, report the full message, including whether it contains `SodsaiMe 0.1.3 network test failed`.
+อัปโหลด versioning.json และ SodsaiMe/source.js ทับไฟล์เดิมบน GitHub
