@@ -463,7 +463,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SodsaiMe = exports.SodsaiMeInfo = void 0;
 const types_1 = require("@paperback/types");
 exports.SodsaiMeInfo = {
-    version: '0.1.5',
+    version: '0.1.6',
     name: 'สดใสเมะ',
     icon: 'icon.png',
     author: 'fileuckigetweb',
@@ -472,6 +472,46 @@ exports.SodsaiMeInfo = {
     websiteBaseURL: 'https://www.xn--l3c0azab5a2gta.com',
     intents: types_1.SourceIntents.MANGA_CHAPTERS | types_1.SourceIntents.HOMEPAGE_SECTIONS
 };
+// Normalize HTML-encoded titles and lazy-loaded cover URLs without changing reader requests.
+function decodeTitle(value) {
+    const named = { amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ', ndash: '–', mdash: '—', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”', copy: '©' };
+    let text = String(value || '');
+    for (let pass = 0; pass < 2; pass++) {
+        text = text.replace(/&(#(?:x[0-9a-f]+|[0-9]+)|[a-z]+);/gi, (full, code) => {
+            if (code.charAt(0) === '#') {
+                const hex = code.charAt(1).toLowerCase() === 'x';
+                const point = parseInt(code.slice(hex ? 2 : 1), hex ? 16 : 10);
+                if (!Number.isFinite(point) || point < 32 || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)) return full;
+                try { return String.fromCodePoint(point); } catch (_) { return full; }
+            }
+            return Object.prototype.hasOwnProperty.call(named, code.toLowerCase()) ? named[code.toLowerCase()] : full;
+        });
+    }
+    return text.replace(/\s+/g, ' ').trim();
+}
+function absoluteCover(raw) {
+    const url = String(raw || '').trim().replace(/&amp;/g, '&');
+    if (!url || /^(data:|blob:|javascript:|#)/i.test(url)) return '';
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.startsWith('//')) return 'https:' + url;
+    const base = 'https://www.xn--l3c0azab5a2gta.com';
+    if (url.startsWith('/')) return base + url;
+    return base + '/' + url.replace(/^\.\//, '');
+}
+function coverFromItem(item) {
+    const img = item.find('.bsx img, .thumb img, img').first();
+    const values = [img.attr('data-src'), img.attr('data-lazy-src'), img.attr('data-original'), img.attr('data-cfsrc'), img.attr('data-srcset'), img.attr('srcset'), img.attr('src')];
+    for (const raw of values) {
+        if (!raw) continue;
+        const candidates = String(raw).split(',');
+        for (const candidate of candidates) {
+            const candidateUrl = candidate.trim().split(/\s+/)[0];
+            const url = absoluteCover(candidateUrl);
+            if (url && !/placeholder|no-image|no_image|loading\.gif|lazyload\.svg/i.test(url)) return url;
+        }
+    }
+    return '';
+}
 function parseThaiChapterDate(value) {
     const months = {
         'มกราคม': 0,
@@ -521,12 +561,10 @@ class SodsaiMe extends types_1.Source {
         });
         const response = await this.requestManager.schedule(request, 1);
         const $ = this.cheerio.load(response.data ?? '');
-        const title = $('.entry-title').first().text().trim()
-            || $('.seriestucon h1').first().text().trim();
+        const title = decodeTitle($('.entry-title').first().text()
+            || $('.seriestucon h1').first().text());
         const imageElement = $('.thumb img').first();
-        const image = imageElement.attr('data-src')
-            ?? imageElement.attr('src')
-            ?? '';
+        const image = coverFromItem($('.thumb').length ? $('.thumb').first() : $('.seriestucon').first());
         // Detail pages can use either Madara or themes based on Madara/MangaStream.
         const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
         const descriptionSelectors = [
@@ -611,7 +649,7 @@ class SodsaiMe extends types_1.Source {
             id: mangaId,
             mangaInfo: App.createMangaInfo({
                 titles: [title || mangaId],
-                image: image.startsWith('//') ? `https:${image}` : image,
+                image,
                 status,
                 artist,
                 author,
@@ -758,10 +796,8 @@ class SodsaiMe extends types_1.Source {
             const item = $(element);
             const link = item.find('.bsx > a, a[href]:has(img), h3 a[href]').first();
             const href = link.attr('href') ?? '';
-            const title = item.find('.tt, h3, h4').first().text().trim() || link.attr('title') || '';
-            const image = item.find('img').first().attr('data-src')
-                ?? item.find('img').first().attr('src')
-                ?? '';
+            const title = decodeTitle(item.find('.tt, h3, h4').first().text() || link.attr('title') || '');
+            const image = coverFromItem(item);
             if (!href || !title)
                 return;
             const mangaId = href
@@ -770,7 +806,7 @@ class SodsaiMe extends types_1.Source {
             results.push(App.createPartialSourceManga({
                 mangaId,
                 title,
-                image: image.startsWith('//') ? `https:${image}` : image,
+                image,
                 subtitle: undefined
             }));
         });
