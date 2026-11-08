@@ -1,5 +1,5 @@
 {
-  "buildTime": "2026-11-08T09:45:29.742474+00:00",
+  "buildTime": "2026-11-08T10:30:42.965441+00:00",
   "sources": [
     {
       "id": "SodsaiMe",
@@ -7,7 +7,7 @@
       "author": "Community development",
       "desc": "SodsaiMe Paperback 0.8 source adapted from uploaded GoManga extension.",
       "contentRating": "EVERYONE",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "icon": "icon.png",
       "tags": [],
       "websiteBaseURL": "https://www.xn--l3c0azab5a2gta.com",

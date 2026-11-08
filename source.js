@@ -730,12 +730,12 @@ var _Sources = (() => {
   var BASE = "https://www.xn--l3c0azab5a2gta.com";
   var banned = /\b(adult|smut|hentai|18\+|explicit|nsfw)\b/i;
   function absolute(url) {
+    url = String(url || "").trim();
     if (!url || /^(data:|javascript:|#)/i.test(url)) return "";
-    try {
-      return new URL(url, BASE).href;
-    } catch {
-      return "";
-    }
+    if (/^https?:\/\//i.test(url)) return url;
+    if (url.slice(0, 2) === "//") return "https:" + url;
+    if (url.charAt(0) === "/") return BASE + url;
+    return BASE + "/" + url;
   }
   function slug(url) {
     return absolute(url).replace(BASE, "").replace(/^\/+|\/+$/g, "");
@@ -744,7 +744,7 @@ var _Sources = (() => {
     return el.text().replace(/\s+/g, " ").trim();
   }
   var SodsaiMeInfo = {
-    version: "0.1.1",
+    version: "0.1.3",
     name: "SodsaiMe (experimental)",
     icon: "icon.png",
     author: "Community development",
@@ -757,17 +757,33 @@ var _Sources = (() => {
   var SodsaiMe = class extends import_types.Source {
     constructor() {
       super(...arguments);
-      this.requestManager = App.createRequestManager({ requestsPerSecond: 2, requestTimeout: 9e3 });
+      this.requestManager = App.createRequestManager({ requestsPerSecond: 2, requestTimeout: 12e3 });
     }
     async load(path) {
-      const request = App.createRequest({ url: absolute(path), method: "GET", headers: { "Accept": "text/html,application/xhtml+xml", "Accept-Language": "th-TH,th;q=0.9,en;q=0.8", "Referer": BASE + "/" } });
-      let response;
-      try { response = await this.requestManager.schedule(request, 1); } catch (error) { throw new Error("SodsaiMe HTTP request failed: " + String(error)); }
-      const html = String(response.data || "");
-      if (/just a moment|checking your browser|cf-chl/i.test(html)) {
-        throw new Error("SodsaiMe: \u0E40\u0E27\u0E47\u0E1A\u0E44\u0E0B\u0E15\u0E4C\u0E15\u0E49\u0E2D\u0E07\u0E15\u0E23\u0E27\u0E08\u0E2A\u0E2D\u0E1A\u0E04\u0E27\u0E32\u0E21\u0E1B\u0E25\u0E2D\u0E14\u0E20\u0E31\u0E22\u0E01\u0E48\u0E2D\u0E19");
+      const requestUrl = absolute(path);
+      if (!requestUrl) throw new Error("SodsaiMe 0.1.3: empty URL");
+      // The Android app and Safari can succeed while the Paperback HTTP client
+      // cannot resolve or reach the same hostname. Try both DNS host variants.
+      const altUrl = requestUrl.indexOf("https://www.xn--l3c0azab5a2gta.com") === 0
+        ? requestUrl.replace("https://www.xn--l3c0azab5a2gta.com", "https://xn--l3c0azab5a2gta.com")
+        : requestUrl;
+      const candidates = altUrl === requestUrl ? [requestUrl] : [requestUrl, altUrl];
+      const errors = [];
+      for (const candidate of candidates) {
+        try {
+          const request = App.createRequest({ url: candidate, method: "GET" });
+          const response = await this.requestManager.schedule(request, 1);
+          const html = String(response.data || "");
+          if (!html.trim()) throw new Error("empty response");
+          if (/just a moment|checking your browser|cf-chl/i.test(html)) {
+            throw new Error("website challenge page");
+          }
+          return { $: App.loadCheerio(html), html };
+        } catch (error) {
+          errors.push((candidate === requestUrl ? "www" : "apex") + ": " + String(error));
+        }
       }
-      return { $: App.loadCheerio(html), html };
+      throw new Error("SodsaiMe 0.1.3 network test failed [" + errors.join(" | ") + "]");
     }
     async getSearchResults(query, metadata) {
       const page = Number(metadata?.page || 1);
