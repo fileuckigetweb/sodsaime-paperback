@@ -463,7 +463,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SodsaiMe = exports.SodsaiMeInfo = void 0;
 const types_1 = require("@paperback/types");
 exports.SodsaiMeInfo = {
-    version: '0.1.4',
+    version: '0.1.5',
     name: 'สดใสเมะ',
     icon: 'icon.png',
     author: 'fileuckigetweb',
@@ -527,37 +527,69 @@ class SodsaiMe extends types_1.Source {
         const image = imageElement.attr('data-src')
             ?? imageElement.attr('src')
             ?? '';
-        const description = $('.seriestucontentr .entry-content-single')
-            .first()
-            .text()
-            .trim();
-        const infoRows = $('.infotable tr');
+        // Detail pages can use either Madara or themes based on Madara/MangaStream.
+        const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+        const descriptionSelectors = [
+            '.seriestucontentr .entry-content-single',
+            '.seriestucontentr .entry-content',
+            '.seriestucon .entry-content',
+            '.seriestucon .desc',
+            '.summary__content',
+            '.description-summary .summary__content',
+            '.manga-excerpt',
+            '.entry-content-single',
+            '.synopsis',
+            '.description',
+            '.desc'
+        ];
+        let description = '';
+        for (const selector of descriptionSelectors) {
+            const candidate = clean($(selector).first().text());
+            if (candidate && candidate.length > description.length) description = candidate;
+            if (description.length >= 40) break;
+        }
+        // Fallback for pages that expose the synopsis as an SEO description.
+        if (!description) {
+            description = clean($('meta[name="description"]').attr('content')
+                || $('meta[property="og:description"]').attr('content'));
+        }
+        const infoRows = $('.infotable tr, .post-content_item, .tsinfo .imptdt, .spe span, .seriestucon .seriestucontentr .infotable tr');
         let author = '';
         let artist = '';
         let status = 'UNKNOWN';
+        const applyField = (label, value) => {
+            label = clean(label).toLowerCase();
+            value = clean(value);
+            if (!value) return;
+            if (/นักเขียน|ผู้แต่ง|author|writer/.test(label)) author = value;
+            if (/นักวาด|artist|illustrator/.test(label)) artist = value;
+            if (/สถานะ|status/.test(label)) {
+                if (/ongoing|on-going|กำลังดำเนิน|ยังไม่จบ|ยังไม่จบ|ต่อเนื่อง|กำลังอัปเดต/i.test(value)) status = 'ONGOING';
+                else if (/completed|complete|finished|จบแล้ว|จบเรื่อง|สมบูรณ์/i.test(value)) status = 'COMPLETED';
+                else if (/hiatus|พัก|หยุดชั่วคราว/i.test(value)) status = 'HIATUS';
+            }
+        };
         infoRows.each((_, element) => {
-            const cells = $(element).find('td');
-            if (cells.length < 2)
+            const row = $(element);
+            const cells = row.find('td');
+            if (cells.length >= 2) {
+                applyField(cells.eq(0).text(), cells.eq(1).text());
                 return;
-            const label = cells.eq(0).text().trim().toLowerCase();
-            const value = cells.eq(1).text().trim();
-            if (!value)
-                return;
-            if (label.includes('นักเขียน') || label.includes('author')) {
-                author = value;
             }
-            else if (label.includes('นักวาด') || label.includes('artist')) {
-                artist = value;
-            }
-            else if (label.includes('สถานะ') || label.includes('status')) {
-                if (/ongoing/i.test(value)) {
-                    status = 'ONGOING';
-                }
-                else if (/completed|complete|finished/i.test(value)) {
-                    status = 'COMPLETED';
-                }
+            const label = row.find('.summary-heading, .imptdt, b, strong, h5').first();
+            const value = row.find('.summary-content, .imptdt i, a, .value').last();
+            if (label.length && value.length) applyField(label.text(), value.text());
+            else {
+                const raw = clean(row.text());
+                const match = raw.match(/^([^:：]+)[:：]\s*(.+)$/);
+                if (match) applyField(match[1], match[2]);
             }
         });
+        if (status === 'UNKNOWN') {
+            const text = clean($('.tsinfo, .spe, .seriestucon, .post-status, .summary-content').text());
+            const match = text.match(/(?:สถานะ|status)\s*[:：]?\s*(ongoing|on-going|completed|complete|finished|กำลังดำเนินการ|ยังไม่จบ|จบแล้ว|จบเรื่อง|hiatus)/i);
+            if (match) applyField('status', match[1]);
+        }
         const genreTags = $('.seriestugenre a').map((_, element) => {
             const label = $(element).text().trim();
             const href = $(element).attr('href') ?? '';
